@@ -1,0 +1,39 @@
+- name: Advanced Service Mesh Course Homework
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - community.kubernetes
+  vars:
+    api_url: https://api.cluster-5579.5579.sandbox1202.opentlc.com:6443
+  tasks:
+    - name: Create required bookinfo namespace
+      k8s:
+        name: bookinfo
+        kind: Namespace
+
+    - name: Deploy the bookinfo example application
+      k8s:
+        namespace: bookinfo
+        apply: yes
+        state: present
+        src: ../files/bookinfo.yaml
+
+    - name: Create route to productpage service
+      k8s:
+        namespace: bookinfo
+        name: productpage
+        definition:
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            labels:
+              app: productpage
+              service: productpage
+          spec:
+            port:
+              targetPort: http
+            to:
+              kind: Service
+              name: productpage
+              weight: 100
+            wildcardPolicy: None

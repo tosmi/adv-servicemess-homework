@@ -1,0 +1,56 @@
+- name: Advanced Service Mesh Course Homework
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - community.kubernetes
+  tasks:
+    - name: Configure the ServiceMessMemberRole
+      k8s:
+        definition:
+          apiVersion: maistra.io/v1
+          kind: ServiceMeshMemberRoll
+          metadata:
+            name: default
+            namespace: bookretail-istio-system
+          spec:
+            members:
+              - bookinfo
+
+    - name: Get the current bookinfo project details
+      k8s_info:
+        api_version: project.openshift.io/v1
+        kind: Project
+        name: bookinfo
+      register: bookinfo_project
+
+    - name: Check bookinfo project label 'kiali.io/member-of'
+      fail:
+        msg: "'kiali.io/member-of: bookretail-istio-system' label is missing"
+      when: bookinfo_project.resources[0].metadata.labels['kiali.io/member-of'] != "bookretail-istio-system"
+
+    - name: Check bookinfo project label 'maistra.io/member-of'
+      fail:
+        msg: "'maistra.io/member-of: bookretail-istio-system' label is missing"
+      when: bookinfo_project.resources[0].metadata.labels['maistra.io/member-of'] != "bookretail-istio-system"
+
+    - name: Get deployments
+      k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: bookinfo
+      register: bookinfo_deployments
+
+    - name: Add sidecar injection annotation to bookinfo deployments
+      k8s:
+        definition:
+          apiVersion: "{{ item.apiVersion }}"
+          kind: "{{ item.kind }}"
+          metadata:
+            name: "{{ item.metadata.name}}"
+            namespace: "{{ item.metadata.namespace }}"
+          spec:
+            template:
+              metadata:
+                annotations:
+                  sidecar.istio.io/inject: "true"
+      loop: "{{ bookinfo_deployments.resources }}"
