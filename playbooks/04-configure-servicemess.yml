@@ -1,0 +1,133 @@
+- name: Advanced Service Mesh Course Homework
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - community.kubernetes
+  vars:
+    cluster: cluster-3e59.3e59.sandbox1878.opentlc.com
+    ssl_config: ../files/productpage-service-cert.cfg
+    ssl_key: ../files/productpage-service-tls.key
+    ssl_cert: ../files/productpage-service-tls.crt
+  tasks:
+    - name: Check if we already have a certificate for productpage
+      stat:
+        path: "{{ ssl_cert }}"
+      register: productpage_certificate
+
+    - name: Create TLS certificate for the productpage service
+      command: openssl req -x509 -config "{{ ssl_config }}" -extensions req_ext -nodes -days 730 -newkey rsa:2048 -sha256 -keyout "{{ ssl_key }}" -out "{{ ssl_cert }}"
+      when: not productpage_certificate.stat.exists
+
+    - name: Query the bookretail-istio-system namespace for the productpage-service-certs secrets
+      command: oc get secrets -n bookretail-istio-system  productpage-service-certs
+      changed_when: no
+      ignore_errors: yes
+      register: productpage_secret_check
+
+    - name: Create a secret to store the certificates for the servicemess
+      command: oc create secret tls productpage-service-certs --cert "{{ ssl_cert }}" --key "{{ ssl_key }}" -n bookretail-istio-system
+      when: productpage_secret_check.rc > 0
+
+    - name: Create servicemess destination rule to enforce mTLS
+      k8s:
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: DestinationRule
+          metadata:
+            name: "{{ item }}-service-client-mtls"
+            namespace: bookinfo
+          spec:
+            host: "{{ item }}.bookinfo.svc.cluster.local"
+            trafficPolicy:
+              tls:
+                mode: ISTIO_MUTUAL
+      loop:
+        - productpage
+        - details
+        - ratings
+        - reviews
+
+    - name: Create servicmess gateway for the productpage
+      k8s:
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: Gateway
+          metadata:
+            name: productpage-service-gateway
+            namespace: bookretail-istio-system
+          spec:
+            selector:
+              istio: ingressgateway # use istio default controller
+            servers:
+              - port:
+                  number: 443
+                  name: https
+                  protocol: HTTPS
+                tls:
+                  mode: SIMPLE
+                  credentialName: productpage-service-certs
+                hosts:
+                  - "productpage-service.bookinfo.apps.{{ cluster }}"
+
+    - name: Create servicmess virtualservice for the productpage
+      k8s:
+        definition:
+          apiVersion: networking.istio.io/v1beta1
+          kind: VirtualService
+          metadata:
+            name: productpage-service-virtualservice
+            namespace: bookinfo
+          spec:
+            hosts:
+            - "productpage-service.bookinfo.apps.{{ cluster }}"
+            gateways:
+            - bookretail-istio-system/productpage-service-gateway
+            http:
+            - route:
+              - destination:
+                  host: productpage.bookinfo.svc.cluster.local
+
+    - name: Create servicemess route for the productpage
+      k8s:
+        definition:
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            annotations:
+              openshift.io/host.generated: "true"
+            labels:
+              app: productpage-service
+            name: productpage-service-route
+            namespace: bookretail-istio-system
+          spec:
+            host: "productpage-service.bookinfo.apps.{{ cluster }}"
+            port:
+              targetPort: https
+            tls:
+              termination: passthrough
+            to:
+              kind: Service
+              name: istio-ingressgateway
+              weight: 100
+            wildcardPolicy: None
+
+    - name: Remove bookinfo non-servicemess route
+      k8s:
+        definition:
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            name: productpage
+            namespace: bookinfo
+        state: absent
+    - name: Set mTLS mode to strict
+      k8s:
+        definition:
+          apiVersion: security.istio.io/v1beta1
+          kind: PeerAuthentication
+          metadata:
+            name: bookinfo-peerauthentication
+            namespace: bookinfo
+          spec:
+            mtls:
+              mode: STRICT

@@ -3,12 +3,15 @@
   gather_facts: no
   collections:
     - community.kubernetes
-  vars:
-    api_url: https://api.cluster-5579.5579.sandbox1202.opentlc.com:6443
   tasks:
     - name: Create required bookretail-istio-system namespace
       k8s:
         name: bookretail-istio-system
+        kind: Namespace
+
+    - name: Create openshift-operators-redhat namespace for elasticsearch
+      k8s:
+        name: openshift-operators-redhat
         kind: Namespace
 
     - name: Install the Elasticsearch operator
@@ -67,6 +70,10 @@
             name: servicemeshoperator
             source: redhat-operators
             sourceNamespace: openshift-marketplace
+
+    - name: Give the servicemess operator 15 seconds to settle
+      wait_for:
+        timeout: 15
 
     - name: Create the ServiceMess control plane
       k8s:

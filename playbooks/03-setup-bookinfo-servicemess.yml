@@ -26,12 +26,16 @@
     - name: Check bookinfo project label 'kiali.io/member-of'
       fail:
         msg: "'kiali.io/member-of: bookretail-istio-system' label is missing"
-      when: bookinfo_project.resources[0].metadata.labels['kiali.io/member-of'] != "bookretail-istio-system"
+      when:
+        - "'kiali.io/member-of' in bookinfo_project.resources[0].metadata.labels"
+        - bookinfo_project.resources[0].metadata.labels['kiali.io/member-of'] != "bookretail-istio-system"
 
     - name: Check bookinfo project label 'maistra.io/member-of'
       fail:
         msg: "'maistra.io/member-of: bookretail-istio-system' label is missing"
-      when: bookinfo_project.resources[0].metadata.labels['maistra.io/member-of'] != "bookretail-istio-system"
+      when:
+        - "'maistra.io/member-of' in bookinfo_project.resources[0].metadata.labels"
+        - bookinfo_project.resources[0].metadata.labels['maistra.io/member-of'] != "bookretail-istio-system"
 
     - name: Get deployments
       k8s_info:
