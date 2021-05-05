@@ -119,6 +119,7 @@
             name: productpage
             namespace: bookinfo
         state: absent
+
     - name: Set mTLS mode to strict
       k8s:
         definition:

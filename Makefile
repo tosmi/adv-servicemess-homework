@@ -6,9 +6,8 @@ ANSIBLE_EXTRA_ARGS := -e @vars.yml
 
 .PHONY:
 update-cluster:
-	@echo "cluster: $(CLUSTER)"
 ifndef CLUSTER
-	@echo "cluster not defined"
+	@echo "CLUSTER not defined, those who can read know more!"
 else
 	@echo "Setting cluster to $(CLUSTER)"
 	sed -i 's/\(cluster: \).*/\1 $(CLUSTER)/' vars.yml
