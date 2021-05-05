@@ -4,7 +4,6 @@
   collections:
     - community.kubernetes
   vars:
-    cluster: cluster-3e59.3e59.sandbox1878.opentlc.com
     ssl_config: ../files/productpage-service-cert.cfg
     ssl_key: ../files/productpage-service-tls.key
     ssl_cert: ../files/productpage-service-tls.crt
